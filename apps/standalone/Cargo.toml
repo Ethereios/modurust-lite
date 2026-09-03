@@ -1,0 +1,9 @@
+[package]
+name = "modurust_standalone"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+modurust_core = { path = "../../core" }
+eframe = "0.26"
+

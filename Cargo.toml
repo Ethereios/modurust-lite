@@ -1,0 +1,11 @@
+[workspace]
+members = [
+    "core",
+    "apps/standalone",
+    "apps/m4l/instrument",
+    "apps/m4l/analyzer",
+    "apps/m4l/modulator",
+    "vst",
+    "clap"
+]
+resolver = "2"

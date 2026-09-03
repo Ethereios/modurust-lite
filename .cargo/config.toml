@@ -1,0 +1,9 @@
+[build]
+jobs = 1
+
+[alias]
+dev = "build"
+devr = "run"
+devc = "check --workspace"
+devt = "test --workspace"
+devcc = "check --workspace -j 1"

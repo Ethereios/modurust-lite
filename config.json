@@ -1,0 +1,15 @@
+{
+  "mode": "synth",
+  "audio_backend": "cpal",
+  "midi_backend": "midir",
+  "udp_port": 9000,
+  "osc_port": 9001,
+  "status_port": 9002,
+  "prime_base": 2,
+  "prime_phase": 0.0,
+  "nn_mode": "complex_phase",
+  "nn_sensitivity": 0.5,
+  "instance_density": 16,
+  "instance_spread": 0.5
+}
+
