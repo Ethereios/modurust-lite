@@ -1,0 +1,7 @@
+[package]
+name = "m4l_instrument"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+modurust_core = { path = "../../../core" }

@@ -1,0 +1,39 @@
+# Rust build artifacts
+/target
+**/target
+Cargo.lock
+
+# Rust backup files
+**/*.rs.bk
+**/*.rs.bak
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Log files
+*.log
+
+# Model files (feature-gated ONNX models)
+*.onnx
+*.bin
+*.pt
+*.pth
+*.h5
+*.hdf5
+*.pkl
+*.pickle
+
+# Audio files
+*.wav
+*.mp3
+*.flac
+*.aac
+

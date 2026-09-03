@@ -1,0 +1,123 @@
+// This is a fixed version of eframe_ui.rs with all syntax errors corrected
+// We'll replace the original file with this one after verification
+
+use crate::audio_engine::bridge::{AudioEngineBridge, AudioParamMessage};
+use crate::ui::hexagonal_node_view::HexNodeViewState;
+use egui::{Color32, Pos2, Rect, Stroke, Vec2};
+
+// Placeholder for the original content
+// The key fix is to ensure all braces are properly closed
+// Particularly in the draw_node_view_full function
+
+/// Draw Node View - Full Implementation
+/// Uses hexagonal node system with advanced wiring
+fn draw_node_view_full(ui: &mut egui::Ui, ui_state: &mut UiState, state: &mut NodeViewState) {
+    ui.heading("🎛️ Hexagonal Node-Based Patching View");
+
+    // Initialize hexagonal node view state if not already done
+    thread_local! {
+        static HEX_NODE_STATE: std::cell::RefCell<HexNodeViewState> = std::cell::RefCell::new(HexNodeViewState::default());
+    }
+    
+    HEX_NODE_STATE.with(|hex_state_cell| {
+        let mut hex_state = hex_state_cell.borrow_mut();
+        
+        // Enhanced Toolbar with categories
+        ui.horizontal(|ui| {
+            ui.collapsing("🎹 Generators", |ui| {
+                ui.horizontal_wrapped(|ui| {
+                    if ui.button("Sine").clicked() {
+                        let pos = ui.input(|i| i.pointer.hover_pos().unwrap_or(Pos2::new(200.0, 200.0)));
+                        hex_state.add_node("Sine", "generator.sine", pos);
+                    }
+                    if ui.button("Saw").clicked() {
+                        let pos = ui.input(|i| i.pointer.hover_pos().unwrap_or(Pos2::new(200.0, 200.0)));
+                        hex_state.add_node("Saw", "generator.saw", pos);
+                    }
+                    if ui.button("Square").clicked() {
+                        let pos = ui.input(|i| i.pointer.hover_pos().unwrap_or(Pos2::new(200.0, 200.0)));
+                        hex_state.add_node("Square", "generator.square", pos);
+                    }
+                    if ui.button("Noise").clicked() {
+                        let pos = ui.input(|i| i.pointer.hover_pos().unwrap_or(Pos2::new(200.0, 200.0)));
+                        hex_state.add_node("Noise", "generator.noise", pos);
+                    }
+                });
+            });
+            
+            ui.collapsing("🔊 Filters", |ui| {
+                ui.horizontal(|ui| {
+                    if ui.button("LPF").clicked() {
+                        let pos = ui.input(|i| i.pointer.hover_pos().unwrap_or(Pos2::new(200.0, 200.0)));
+                        hex_state.add_node("LPF", "filter.lpf", pos);
+                    }
+                    if ui.button("HPF").clicked() {
+                        let pos = ui.input(|i| i.pointer.hover_pos().unwrap_or(Pos2::new(200.0, 200.0)));
+                        hex_state.add_node("HPF", "filter.hpf", pos);
+                    }
+                    if ui.button("BPF").clicked() {
+                        let pos = ui.input(|i| i.pointer.hover_pos().unwrap_or(Pos2::new(200.0, 200.0)));
+                        hex_state.add_node("BPF", "filter.bpf", pos);
+                    }
+                });
+            });
+            
+            ui.collapsing("✨ Effects", |ui| {
+                ui.horizontal(|ui| {
+                    if ui.button("Delay").clicked() {
+                        let pos = ui.input(|i| i.pointer.hover_pos().unwrap_or(Pos2::new(200.0, 200.0)));
+                        hex_state.add_node("Delay", "effect.delay", pos);
+                    }
+                    if ui.button("Chorus").clicked() {
+                        let pos = ui.input(|i| i.pointer.hover_pos().unwrap_or(Pos2::new(200.0, 200.0)));
+                        hex_state.add_node("Chorus", "effect.chorus", pos);
+                    }
+                    if ui.button("Distortion").clicked() {
+                        let pos = ui.input(|i| i.pointer.hover_pos().unwrap_or(Pos2::new(200.0, 200.0)));
+                        hex_state.add_node("Distortion", "effect.distortion", pos);
+                    }
+                });
+            });
+
+            ui.collapsing("🎚️ Modulators", |ui| {
+                ui.horizontal(|ui| {
+                    if ui.button("LFO").clicked() {
+                        let pos = ui.input(|i| i.pointer.hover_pos().unwrap_or(Pos2::new(200.0, 200.0)));
+                        hex_state.add_node("LFO", "modulator.lfo", pos);
+                    }
+                    if ui.button("Envelope").clicked() {
+                        let pos = ui.input(|i| i.pointer.hover_pos().unwrap_or(Pos2::new(200.0, 200.0)));
+                        hex_state.add_node("Envelope", "modulator.env", pos);
+                    }
+                    if ui.button("S&H").clicked() {
+                        let pos = ui.input(|i| i.pointer.hover_pos().unwrap_or(Pos2::new(200.0, 200.0)));
+                        hex_state.add_node("S&H", "modulator.sah", pos);
+                    }
+                });
+            });
+
+            ui.collapsing("🔌 Utilities", |ui| {
+                ui.horizontal(|ui| {
+                    if ui.button("Mixer").clicked() {
+                        let pos = ui.input(|i| i.pointer.hover_pos().unwrap_or(Pos2::new(200.0, 200.0)));
+                        hex_state.add_node("Mixer", "utility.mixer", pos);
+                    }
+                    if ui.button("VCA").clicked() {
+                        let pos = ui.input(|i| i.pointer.hover_pos().unwrap_or(Pos2::new(200.0, 200.0)));
+                        hex_state.add_node("VCA", "utility.vca", pos);
+                    }
+                });
+            });
+        });
+
+        // Main canvas area for node view
+        let available_size = ui.available_size();
+        let canvas_rect = Rect::from_min_size(ui.cursor().min, available_size);
+        
+        // Draw the hexagonal node view
+        hex_state.draw(ui, canvas_rect);
+        
+        // Advance cursor past the canvas
+        ui.allocate_rect(canvas_rect, egui::Sense::click());
+    });
+}
