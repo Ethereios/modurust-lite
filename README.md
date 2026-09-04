@@ -25,7 +25,7 @@ modurust-vst3/
 │   ├── tests/            integration tests (engine + comm)
 │   └── examples/         engine_demo, nn_morph
 ├── apps/
-│   ├── standalone/       egui GUI (config hot-reload, Start Audio, note buttons, XY morph pad)
+│   ├── standalone/       egui GUI (visual node graph editor, XY morph pad, 16-param controls, note buttons, config save/load)
 │   └── m4l/              instrument / analyzer / modulator UDP bridges
 ├── vst/                  modurust-vst VST2 plugin (exposes modurust_core as a VST instrument)
 ├── clap/                 modurust-clap CLAP plugin (exposes modurust_core as a CLAP plugin)

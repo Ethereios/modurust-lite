@@ -155,6 +155,7 @@ pub struct ModurustVst {
     sample_rate: f32,
     block_size: usize,
     running: Arc<AtomicBool>,
+    param_smoothed: [f32; PARAM_COUNT],
 }
 
 impl Default for ModurustVst {
@@ -171,6 +172,8 @@ impl ModurustVst {
         let params = Arc::new(ModurustVstParams::default());
         let running = Arc::new(AtomicBool::new(true));
 
+        let param_smoothed = params.params.iter().map(|p| p.get()).collect::<Vec<_>>().try_into().unwrap_or([0.0; PARAM_COUNT]);
+
         {
             let mut eng = engine.lock().unwrap();
             eng.master_gain = 0.8;
@@ -184,6 +187,7 @@ impl ModurustVst {
             sample_rate,
             block_size,
             running: running.clone(),
+            param_smoothed,
         }
     }
 
@@ -364,7 +368,7 @@ impl ModurustVst {
                 eng.set_param(Param::DelayTime, value.clamp(0.0, 1.0));
             }
             Some(VstParam::DelayFeedback) => {
-                eng.set_param(Param::DelayFeedback, value.clamp(0.0, 1.0));
+                eng.set_param(Param::DelayFeedback, value.clamp(0.0, 0.95));
             }
             Some(VstParam::EnvAttack) => {
                 eng.set_param(Param::EnvAttack, value.clamp(0.0, 1.0));
@@ -405,9 +409,11 @@ impl ModurustVst {
     }
 
     fn sync_params(&mut self) {
+        let smoothing_coeff = 0.95;
         for i in 0..PARAM_COUNT {
-            let v = self.params.get_parameter(i as i32);
-            self.apply_param_to_engine(i, v);
+            let raw_value = self.params.get_parameter(i as i32);
+            self.param_smoothed[i] = self.param_smoothed[i] * smoothing_coeff + raw_value * (1.0 - smoothing_coeff);
+            self.apply_param_to_engine(i, self.param_smoothed[i]);
         }
     }
 

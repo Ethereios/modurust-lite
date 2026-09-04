@@ -101,9 +101,12 @@ Modurust-Lite is a **modular DSP audio engine**. Nodes are connected in a graph 
 - Arpeggiator (internally instead of M4L-only)
 
 ### Visual Editor Enhancements:
-- Node graph UI for standalone (replacing XY pad)
-- Cable patching visualization
-- Oscilloscope/spectrum analyzer UI
+- [x] Node graph UI for standalone (complete visual node editor)
+- [x] Cable patching visualization (rendered connections between nodes)
+- [x] Node palette with all 15 DSP node types organized by category
+- [x] Quick templates (Synth Chain, Delay Effect)
+- [x] Per-node parameter editing via side panel
+- [x] Drag-and-drop node positioning on canvas
 
 ### Additional Filter/Effect Types:
 - State-variable filter (4-mode simultaneous output)
@@ -118,7 +121,7 @@ Modurust-Lite is a **modular DSP audio engine**. Nodes are connected in a graph 
 ## Test Coverage
 
 All node types have unit tests and integration tests:
-- 47 tests passing total
+- 67 tests passing (27 core + 20 engine comm + 20 standalone)
 - Voice pool polyphony tested
 - Graph topological sort tested
 - Parameter routing tested

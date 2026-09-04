@@ -21,26 +21,31 @@ Modurust-Lite focuses on being a modular DSP audio engine rather than a full DAW
 
 ## Standalone GUI (`apps/standalone`)
 
-### Status: Working
+### Status: Working (visual node editor + full control surface)
 
-- [x] Config hot-reload (config.json)
-- [x] Audio device selection
-- [x] Start/Stop audio
-- [x] Note buttons (C2-C5 + All Notes Off)
-- [x] XY morph pad (prime_phase / nn_sensitivity)
-- [x] Parameter display
-- [x] Peak meter
-- [x] Voice count display
+- [x] Config hot-reload (config.json) via `ConfigWatcher` (notify)
+- [x] Start/Stop audio (▶ Start Audio button, cpal `CpalEngineHost`)
+- [x] **Visual node graph editor** — drag/drop, cable connections, click-to-select, palette of all 15 DSP node types
+- [x] **Node palette** with sources/filters/effects/utility groups + quick templates (Synth Chain, Delay Effect)
+- [x] **Per-node parameter editor** — Oscillator freq/waveform, Filter cutoff/resonance/mode, Envelope ADSR, Delay time/feedback, Reverb room/damping, Distortion drive/tone, Gain
+- [x] **XY morph pad** (prime_phase × nn_sensitivity) with live visual feedback
+- [x] **Global parameter strip** — all 16 M4L-addressable params (filter cutoff/resonance/mode, reverb mix, delay time/feedback, env attack/release, waveform, master gain)
+- [x] **Mode selector** (Synth / Sampler / Effect / Controller) — live pushes to engine
+- [x] **Note buttons** (C1–C6 chromatically) + All Notes Off
+- [x] **Save / Load config** buttons writing `config.json` directly
+- [x] **Status display** — mode, voice count, peak meter (color-coded green/yellow/red)
+- [x] **UDP bridge** — UdpOscBridge wired up at startup (binary UDP + OSC + status broadcast)
 
 ### Build
 ```bash
-cargo run -p Modurust-standalone
+cargo run -p modurust_standalone
 ```
 
 ### Dependencies
 - `eframe` 0.26 (egui)
 - `cpal` 0.15 (audio)
-- `notify` (config watching)
+- `notify` (config watching, via core)
+- `crossbeam-channel` (via core)
 
 ## Max for Live Bridges (`apps/m4l/*`)
 
@@ -174,7 +179,6 @@ Output: `target/release/modurustvst.dll`
 - [ ] Preset storage/recall (save/load plugin states)
 - [ ] MIDI Learn (map parameters to MIDI controllers)
 - [ ] OSC control (alternative to UDP binary protocol)
-- [ ] Node graph editor UI (visual patching interface)
 
 ### Architecture
 

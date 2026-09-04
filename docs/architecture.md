@@ -35,7 +35,7 @@ modurust-vst3/
 │   └── src/comm/
 │       └── mod.rs        UdpOscBridge (binary UDP primary, OSC fallback, status heartbeat)
 ├── apps/
-│   ├── standalone/       egui GUI (config hot-reload, Start Audio, note buttons, XY morph pad)
+│   ├── standalone/       egui GUI (visual node graph editor, XY morph pad, 16-param controls, note buttons, config save/load)
 │   └── m4l/              instrument / analyzer / modulator UDP bridges
 ├── clap/                 modurust-clap CLAP plugin (exposes modurust_core as a CLAP instrument/effect)
 └── vst/                  modurust-vst VST2 plugin (exposes modurust_core as a VST instrument)
@@ -66,11 +66,16 @@ CoreEngine.process_block ──▶ SuperInstancePool voice render
 ## Frontend Implementations
 
 ### Standalone GUI (`apps/standalone`)
-- Loads/saves `config.json` with live watcher
-- Starts cpal audio via `CpalEngineHost`
-- Note buttons + All Notes Off
+- Visual node graph editor — palette of all 15 DSP node types, drag-and-drop creation, cable connections, click-to-select
+- Per-node parameter editing panel (Oscillator, Filter, Envelope, Delay, Reverb, Distortion, Gain)
 - XY morph pad (prime_phase / nn_sensitivity)
-- Live config → engine push
+- Global parameter strip for all 16 M4L-addressable parameters
+- Mode selector (Synth / Sampler / Effect / Controller)
+- Note buttons + All Notes Off
+- Save / Load config.json
+- Status display (mode, voice count, peak meter)
+- Starts cpal audio via `CpalEngineHost`
+- `UdpOscBridge` wired up at startup for UDP binary + OSC + status broadcast
 
 ### M4L Bridges (`apps/m4l/*`)
 - Instrument: plays chord progression with arpeggiation
@@ -113,4 +118,4 @@ CoreEngine.process_block ──▶ SuperInstancePool voice render
 
 ## Tests
 
-47 tests (20 core unit + 20 core integration + 7 VST unit) covering voice-pool polyphony, UDP end-to-end, OSC decode, status packet encoding, config hot-reload, prime gate/pattern, engine command handling, SetParam path, protocol parity, and graph text-protocol coverage.
+67 tests (27 core unit + 20 core integration + 20 standalone) covering voice-pool polyphony, UDP end-to-end, OSC decode, status packet encoding, config hot-reload, prime gate/pattern, engine command handling, SetParam path, protocol parity, graph text-protocol coverage, and standalone node editor integration.
