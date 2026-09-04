@@ -2,10 +2,11 @@
 
 ## Overview
 
-Modurust-Lite is a **headless modular DSP audio engine** in Rust. It is exposed through three frontends:
+Modurust-Lite is a **headless modular DSP audio engine** in Rust. It is exposed through four frontends:
 1. A standalone egui GUI (`apps/standalone`)
 2. Max for Live UDP bridges (`apps/m4l/*`)
-3. A VST2 plugin (`vst/`)
+3. A CLAP plugin (`clap/`) — primary plugin format for modern DAWs
+4. A VST2 plugin (`vst/`) — universal DAW compatibility
 
 The core engine (`modurust_core`) is the only required component; the frontends are optional and interchangeable.
 
@@ -36,6 +37,7 @@ modurust-vst3/
 ├── apps/
 │   ├── standalone/       egui GUI (config hot-reload, Start Audio, note buttons, XY morph pad)
 │   └── m4l/              instrument / analyzer / modulator UDP bridges
+├── clap/                 modurust-clap CLAP plugin (exposes modurust_core as a CLAP instrument/effect)
 └── vst/                  modurust-vst VST2 plugin (exposes modurust_core as a VST instrument)
 ```
 
@@ -75,6 +77,15 @@ CoreEngine.process_block ──▶ SuperInstancePool voice render
 - Analyzer: sweeps NN sensitivity, parses status
 - Modulator: sweeps prime base/density/spread, parses status
 - All use std::net::UdpSocket, no external deps
+
+### CLAP Plugin (`clap/`)
+- Exposes modurust_core as a CLAP instrument/audio-effect
+- 16 parameters mapped to engine controls (same as VST2)
+- MIDI input (NoteOn/NoteOff)
+- Audio output via CoreEngine::process_block
+- UDP control listener on port 9000 for M4L text commands
+- UDP status broadcaster on port 9002 for M4L monitoring
+- Build: `cargo build -p modurust-clap --release`
 
 ### VST2 Plugin (`vst/`)
 - Exposes modurust_core as a VST2 instrument

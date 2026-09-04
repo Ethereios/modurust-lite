@@ -66,8 +66,8 @@ cargo build -p modurust-clap --release
 - **Control surface** — UDP binary protocol (kinds 0–7) as primary, OSC fallback (all 8 addresses), a text protocol for M4L `udpsend`, and a full graph text protocol for live modular patching (18+ commands).
 - **Standalone GUI** — starts the cpal audio stream (▶ Start Audio), note buttons drive the voice pool, All Notes Off, 2D XY complex-latent morph pad, and live config → engine push.
 - **M4L bridges** — self-contained instrument/analyzer/modulator UDP run-loops (std::net::UdpSocket only, no extra deps).
+- **CLAP plugin** — `modurust-clap` exposes modurust_core as a CLAP instrument/audio-effect (primary plugin format). Build with `cargo build -p modurust-clap --release`.
 - **VST2 plugin** — `modurust-vst` exposes modurust_core as a VST2 instrument with 16 parameters (filter, envelope, DSP, prime, NN, master) and MIDI input. Build with `cargo build -p modurust-vst --release`.
-- **CLAP plugin** — `modurust-clap` exposes modurust_core as a CLAP instrument/audio-effect. Build with `cargo build -p modurust-clap --release`.
 
 ## Protocol (UDP binary, primary)
 
@@ -97,11 +97,94 @@ Engine status is broadcast on two disjoint port groups so the Max device and Rus
 
 47 tests (27 core unit + 20 core integration), including voice-pool polyphony rendering, UDP end-to-end (binary + text `param` + noteon/alloff), OSC decode, status packet encoding, config `watch_once`, prime gate/pattern, engine command handling, `SetParam` filter/master-gain path, protocol parity, and full graph text-protocol coverage.
 
+## Bug Fixes (v0.2.0)
+
+- Fixed process_events iterator bug (events.events() vs events.events.iter())
+- Fixed type errors in VST plugin (i32 for unique_id/parameters, mut audio outputs)
+- Removed unused filter_cutoff_norm and filter_resonance_norm functions
+- Fixed UDP command parser for M4L text protocol
+- Fixed status packet encoding
+
+## Feature Overview
+
+| Category | Features |
+|----------|----------|
+| **Oscillators** | Sine, saw, square, triangle; wavetable support planned |
+| **Filters** | Biquad: LP, HP, BP, Notch; state-variable planned |
+| **Envelopes** | ADSR with per-voice auto-release |
+| **Effects** | SimpleDelay, Reverb, Distortion, Gain |
+| **Modulation** | LFO, PrimeScheduler pattern generation |
+| **Network** | ComplexNeuralNetwork with modReLU/cardioid |
+| **Graph** | Topological sort, N×M node connections |
+| **Polyphony** | SuperInstancePool with voice stealing |
+| **Control** | MIDI note-on/off, param textset, UDP commands |
+| **Output** | cpal audio device, CLAP/VST plugin output |
+
+## Ableton Live Integration
+
+### CLAP Plugin (Recommended)
+```bash
+cargo build -p modurust-clap --release
+```
+Copy `target/release/modurustclap.dll` to CLAP folder, rescan in Ableton Live 12+, insert as Instrument/Audio Effect.
+
+### VST2 Plugin
+```bash
+cargo build -p modurust-vst --release
+```
+Copy `target/release/modurustvst.dll` to VST folder, rescan in Ableton, insert as Instrument/Audio Effect.
+
+### M4L Bridges
+Load `ModurustLite_Instrument.amxd`, `ModurustLite_Analyzer.amxd`, `ModurustLite_Modulator.amxd` from `apps/m4l/`. Configure UDP ports in `config.json` (9000/9001/9002).
+
+### Available Controls
+**Via VST/CLAP automation (16 params):** Filter Cutoff, Resonance, Mode, Reverb Mix, Delay Time/Feedback, Env Attack/Release, Waveform, Master Gain, Prime Base, Prime Phase, NN Sensitivity, Instance Density/Spread, Engine Mode.
+
+**Via M4L UDP:** NoteOn/NoteOff, Prime/Base/Phase, NN Sensitivity, Instance Density/Spread, Mode, Graph text protocol commands.
+
+### Graph Text Protocol (live modular patching from M4L)
+```
+graph_osc 1 sine 440
+graph_filter 2 lowpass 1000 0.7
+graph_connect 1 2
+graph_output 2
+graph_param 1 frequency 880
+graph_param 2 cutoff 500
+graph_clear
+```
+
+## Future Roadmap (Priority Ordered)
+
+### Priority 1: Plugin Stabilization
+- CLAP/VST parameter smoothing
+- Preset serialization (save/load)
+- MIDI Learn support
+
+### Priority 2: M4L Enhancement
+- Visual controls for all 16 parameters
+- XY morph pad for prime/NN
+- Graph patch commands from M4L
+- Status display (mode, peak, voices)
+
+### Priority 3: DSP Expansion
+- State-variable filter (4-mode)
+- Ladder filter (Moog-style)
+- Wavetable oscillator
+- FM synthesis
+- Convolution reverb
+- Granular synthesis
+- ONNX model loading
+
+### Priority 4: Hardware Deployment
+- Remove desktop dependencies (minimal build)
+- I2S audio codec integration
+- MIDI UART, GPIO controls
+- Target: Raspberry Pi, Teensy, ESP32
+
 ## Documentation
 
-- `docs/architecture.md` — actual project architecture and data flow
-- `docs/changes-features-ACCURATE.md` — honest implementation status
-- `docs/ROADMAP.md` — roadmap
-- `docs/node-system-features.md` — DSP node library
-- `docs/frontend-status.md` — standalone GUI + M4L status
-- `ABLETON_INTEGRATION.md` — M4L + VST setup guide for Ableton Live
+- `README.md` — architecture, protocol, frontends, node system, Ableton integration
+- `TODO.md` — priority task list, completed phases
+- `docs/architecture.md` — detailed architecture and data flow
+- `docs/frontend-status.md` — standalone GUI, M4L, VST2, CLAP status
+- `docs/node-system-features.md` — DSP node library and planned features

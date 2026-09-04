@@ -4,15 +4,20 @@
 
 Modurust-Lite is a **headless modular DSP audio engine**. Frontends are optional GUI/interface layers that expose the core engine's functionality.
 
-**This is NOT a DAW** - there is no timeline, arrangement view, clip editing, or automation.
-
 ## Frontend Summary
 
 | Frontend | Status | Purpose |
 |----------|--------|---------|
 | **Standalone GUI** | ✅ Working | Desktop use with egui |
 | **M4L Bridges** | ✅ Working | Control via Max for Live in Ableton |
+| **CLAP Plugin** | ✅ Working | Primary plugin format for modern DAWs |
 | **VST2 Plugin** | ✅ Working | Instrument in any DAW |
+
+## Overview
+
+Modurust-Lite is a **headless modular DSP audio engine**. Frontends are optional GUI/interface layers that expose the core engine's functionality.
+
+Modurust-Lite focuses on being a modular DSP audio engine rather than a full DAW, so it does not include timeline/arrangement views, clip launching/sequencing, audio recording, or automation lanes.
 
 ## Standalone GUI (`apps/standalone`)
 
@@ -74,6 +79,50 @@ Three M4L devices provide Ableton Live integration:
 ### Dependencies
 - None (uses `std::net::UdpSocket` only)
 
+## CLAP Plugin (`clap/`)
+
+### Status: Working
+
+- [x] CLAP instrument/audio-effect plugin
+- [x] 16 parameters exposed
+- [x] MIDI input (NoteOn/NoteOff)
+- [x] Audio output
+- [x] UDP control listener (port 9000)
+- [x] UDP status broadcaster (port 9002)
+
+### Parameters (16)
+
+| Index | Parameter | Range |
+|-------|-----------|-------|
+| 0 | Filter Cutoff | 20-20000 Hz |
+| 1 | Filter Resonance | 0-1 |
+| 2 | Filter Mode | LP/HP/BP/Notch |
+| 3 | Reverb Mix | 0-1 |
+| 4 | Delay Time | 0-1 |
+| 5 | Delay Feedback | 0-1 |
+| 6 | Env Attack | 0-1 |
+| 7 | Env Release | 0-1 |
+| 8 | Waveform | Sine/Saw/Square/Tri |
+| 9 | Master Gain | 0-1 |
+| 10 | Prime Base | 1-100 |
+| 11 | Prime Phase | 0-1 |
+| 12 | NN Sensitivity | 0-1 |
+| 13 | Instance Density | 1-16 |
+| 14 | Instance Spread | 0-1 |
+| 15 | Engine Mode | Basic/Prime/NN/Hybrid |
+
+### Build
+```bash
+cargo build -p modurust-clap --release
+```
+
+Output: `target/release/modurustclap.dll`
+
+### Dependencies
+- `clap-sys` 0.3 (CLAP API)
+- `crossbeam-channel`
+- `modurust_core`
+
 ## VST2 Plugin (`vst/`)
 
 ### Status: Working
@@ -117,24 +166,17 @@ Output: `target/release/modurustvst.dll`
 - `crossbeam-channel`
 - `modurust_core`
 
-## What Frontends Do NOT Provide
+## Future Frontend Features to Implement
 
-### Not Implemented
-- [ ] VST3 support
-- [ ] VST editor GUI
-- [ ] Preset storage/recall
-- [ ] MIDI Learn
-- [ ] OSC control
-- [ ] Node graph editor UI
+### Not Yet Implemented (Planned):
+- [ ] VST3 support (modern DAW compatibility)
+- [ ] Plugin editor GUI (parameter editing interface)
+- [ ] Preset storage/recall (save/load plugin states)
+- [ ] MIDI Learn (map parameters to MIDI controllers)
+- [ ] OSC control (alternative to UDP binary protocol)
+- [ ] Node graph editor UI (visual patching interface)
 
-### Never Planned
-- Timeline / arrangement view
-- Clip launching / sequencing
-- Audio recording
-- Automation lanes
-- DAW-style mixing console
-
-## Architecture
+### Architecture
 
 ```
                     ┌─────────────────┐

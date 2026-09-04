@@ -1,24 +1,12 @@
 # Modurust-Lite Roadmap
 
-## What This Project IS NOT
-
-**This is NOT a DAW.** There is:
-- NO timeline
-- NO clip matrix
-- NO arrangement view
-- NO transport controls
-- NO automation lanes
-- NO audio recording
-- NO MIDI piano roll
-
-This is a **modular DSP audio engine** - a synthesizer/effect processor that can run standalone or inside a real DAW (like Ableton Live).
-
 ## What This Project IS
 
-**Modurust-Lite** is a headless modular DSP audio engine with three interchangeable frontends:
-- Standalone egui GUI (`apps/standalone`) - for desktop use
-- Max for Live UDP bridges (`apps/m4l/*`) - for Ableton Live control
-- VST2 plugin (`vst/`) - for use as an instrument in any DAW
+**Modurust-Lite** is a headless modular DSP audio engine with four interchangeable frontends:
+- Standalone egui GUI (`apps/standalone`) — for desktop use
+- Max for Live UDP bridges (`apps/m4l/*`) — for Ableton Live control
+- VST2 plugin (`vst/`) — for use as an instrument in any DAW
+- CLAP plugin (`clap/`) — primary plugin format for modern DAWs
 
 The engine processes audio through a graph of DSP nodes (oscillators, filters, effects, neural networks).
 
@@ -39,22 +27,24 @@ The engine processes audio through a graph of DSP nodes (oscillators, filters, e
 - Standalone egui app with config hot-reload and XY morph pad.
 - Three interactive M4L bridges (instrument/analyzer/modulator).
 - VST2 plugin exposing modurust_core as a VST instrument with UDP control.
+- CLAP plugin exposing modurust_core as a CLAP instrument/audio-effect.
 - 47 tests passing (20 unit + 20 integration + 7 VST).
 
-## Phase 1 — VST Plugin Stabilization (2-4 weeks)
+### Phase 1 — VST/CLAP Plugin Stabilization (2-4 weeks)
 
 ### Goals
-- Make the VST2 plugin production-ready
-- Full bidirectional M4L ↔ VST communication
+- Make the VST2 and CLAP plugins production-ready
+- Full bidirectional M4L ↔ plugin communication
 - Preset management
 
 ### Next Steps
 1. Test VST plugin in Ableton Live
-2. Add VST parameter smoothing
-3. Add preset serialization (save/load)
-4. Add proper MIDI Learn
+2. Test CLAP plugin in Ableton Live 12+
+3. Add VST/CLAP parameter smoothing
+4. Add preset serialization (save/load)
+5. Add proper MIDI Learn
 
-## Phase 2 — M4L Enhancement (2-4 weeks)
+### Phase 2 — M4L Enhancement (2-4 weeks)
 
 ### Goals
 - Full control surface for all 16 parameters
@@ -67,7 +57,7 @@ The engine processes audio through a graph of DSP nodes (oscillators, filters, e
 3. Graph commands: add/remove/connect nodes
 4. Status display (mode, peak, voices)
 
-## Phase 3 — DSP Expansion (1-3 months)
+### Phase 3 — DSP Expansion (1-3 months)
 
 ### Goals
 - More oscillator types
@@ -82,7 +72,7 @@ The engine processes audio through a graph of DSP nodes (oscillators, filters, e
 - Convolution reverb
 - Granular synthesis
 
-## Phase 4 — Hardware Deployment (3-6 months)
+### Phase 4 — Hardware Deployment (3-6 months)
 
 ### Goals
 - Run on embedded devices
@@ -94,7 +84,7 @@ The engine processes audio through a graph of DSP nodes (oscillators, filters, e
 - Add I2S audio codec support
 - Add hardware MIDI/CV interfaces
 
-## Phase 5 — Advanced DSP (3-6 months)
+### Phase 5 — Advanced DSP (3-6 months)
 
 ### Planned
 - Spectral processing (FFT-based filters)
@@ -102,12 +92,12 @@ The engine processes audio through a graph of DSP nodes (oscillators, filters, e
 - More neural network modes
 - ONNX model loading
 
-## Tracking & Ownership
+### Tracking & Ownership
 - Issues: Create tasks per acceptance criteria
-- Owners: TBD; use labels `ableton`, `m4l`, `vst`, `hardware`, `dsp`
+- Owners: TBD; use labels `ableton`, `m4l`, `vst`, `clap`, `hardware`, `dsp`
 
-## Notes
+### Notes
 - Keep Bevy `LogPlugin` disabled due to `env_logger` init.
-- The VST plugin uses `vst` crate 0.4 (VST2 API) for Ableton compatibility.
+- The VST and CLAP plugins use `vst`/`clap-sys` crates for DAW compatibility.
 - M4L devices use only `std::net::UdpSocket` — no external dependencies.
 - The standalone GUI uses `eframe` 0.26 — minimal dependencies.

@@ -88,22 +88,32 @@ Modurust-Lite is a **modular DSP audio engine**. Nodes are connected in a graph 
 - [x] **NN** - Neural network modulation
 - [x] **Hybrid** - Combined prime + NN control
 
-## What This Project Does NOT Have
+## Future Node Features to Implement
 
-**No audio I/O nodes** (engine uses cpal directly):
-- No audio input recording
-- No audio file import
-- No audio export
+### Audio I/O Nodes (engine currently uses cpal directly):
+- Audio input recording (input node)
+- Audio file import (sampler with file support)
+- Audio export (output node)
 
-**No MIDI piano roll / sequencing:**
-- MIDI note on/off only (no note recording)
-- No step sequencer
-- No arpeggiator (M4L provides this externally)
+### MIDI Piano Roll / Sequencing:
+- MIDI note recording (MIDI piano roll)
+- Step sequencer (per-note timing grid)
+- Arpeggiator (internally instead of M4L-only)
 
-**No visual editor:**
-- No node graph UI (standalone uses simple XY pad)
-- No cable patching visualization
-- No oscilloscope / spectrum analyzer UI
+### Visual Editor Enhancements:
+- Node graph UI for standalone (replacing XY pad)
+- Cable patching visualization
+- Oscilloscope/spectrum analyzer UI
+
+### Additional Filter/Effect Types:
+- State-variable filter (4-mode simultaneous output)
+- Ladder filter (Moog-style resonance)
+- Formant filter (vocal synthesis)
+- FFT-based spectral filter
+- Convolution reverb
+- Chorus / Phaser / Flanger
+- Granular synthesis node
+- Compressor, Gate, Limiter nodes
 
 ## Test Coverage
 
