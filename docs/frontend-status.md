@@ -1,203 +1,123 @@
-# Frontend Status
+# Modurust-Lite Frontend Status
 
-## Overview
+## Current Standalone GUI (`apps/standalone`)
 
-Modurust-Lite is a **headless modular DSP audio engine**. Frontends are optional GUI/interface layers that expose the core engine's functionality.
+**Version**: egui 0.26 via `eframe` 0.26  
+**Build**: `cargo run -p modurust_standalone`  
+**Status**: Active — see architecture.md § Standalone GUI. Full rewrite to iced 0.14 planned (Phase 2 roadmap).
 
-## Frontend Summary
+### What It Does
+- Node graph editor: drag-drop palette of 15 DSP nodes, cable connections, click-select
+- XY morph pad: `prime_phase` / `nn_sensitivity`
+- Global parameter strip: all 16 M4L-addressable params
+- Mode selector: Synth / Sampler / Effect / Controller
+- Note buttons + All Notes Off
+- Save config.json / Load config.json
+- Status display: mode, voice count, peak meter
+- UDP bridge: binary on 9000, OSC on 9001, status on 9002
 
-| Frontend | Status | Purpose |
-|----------|--------|---------|
-| **Standalone GUI** | ✅ Working | Desktop use with egui |
-| **M4L Bridges** | ✅ Working | Control via Max for Live in Ableton |
-| **CLAP Plugin** | ✅ Working | Primary plugin format for modern DAWs |
-| **VST2 Plugin** | ✅ Working | Instrument in any DAW |
+### What It Wants To Be (future iced)
+- Tabbed interface: **Modular Synth** (node graph), **Drum Machine** (8-pad kit + 16-step seq), **FX Rack** (per-FX strips)
+- Sample browser with drag-drop loading
+- 16-pattern sequencer with ConditionTrig per-track
+- Preset save/load from UI
+- Spectral classification of samples
 
-## Overview
+**Note**: The egui path has no drum machine, no FX rack, no named patterns. These are Phase 1+2 additions.
 
-Modurust-Lite is a **headless modular DSP audio engine**. Frontends are optional GUI/interface layers that expose the core engine's functionality.
+---
 
-Modurust-Lite focuses on being a modular DSP audio engine rather than a full DAW, so it does not include timeline/arrangement views, clip launching/sequencing, audio recording, or automation lanes.
+## M4L Bridges (`apps/m4l/*`)
 
-## Standalone GUI (`apps/standalone`)
+**Version**: UDP-only, no external deps  
+**Build**: `.amxd` files placed in Ableton Live Set  
+**Status**: Active — 3 devices exist.
 
-### Status: Working (visual node editor + full control surface)
+| Device | Purpose | Key Controls |
+|--------|---------|-------------|
+| `ModurustLite_Instrument.amxd` | Plays chord progression with arpeggiation | NoteOn/NoteOff, all 16 params |
+| `ModurustLite_Analyzer.amxd` | Sweeps NN sensitivity, parses status | Reads status broadcast on 9002 |
+| `ModurustLite_Modulator.amxd` | Sweeps prime base/density/spread, parses status | Prime sequence control |
 
-- [x] Config hot-reload (config.json) via `ConfigWatcher` (notify)
-- [x] Start/Stop audio (▶ Start Audio button, cpal `CpalEngineHost`)
-- [x] **Visual node graph editor** — drag/drop, cable connections, click-to-select, palette of all 15 DSP node types
-- [x] **Node palette** with sources/filters/effects/utility groups + quick templates (Synth Chain, Delay Effect)
-- [x] **Per-node parameter editor** — Oscillator freq/waveform, Filter cutoff/resonance/mode, Envelope ADSR, Delay time/feedback, Reverb room/damping, Distortion drive/tone, Gain
-- [x] **XY morph pad** (prime_phase × nn_sensitivity) with live visual feedback
-- [x] **Global parameter strip** — all 16 M4L-addressable params (filter cutoff/resonance/mode, reverb mix, delay time/feedback, env attack/release, waveform, master gain)
-- [x] **Mode selector** (Synth / Sampler / Effect / Controller) — live pushes to engine
-- [x] **Note buttons** (C1–C6 chromatically) + All Notes Off
-- [x] **Save / Load config** buttons writing `config.json` directly
-- [x] **Status display** — mode, voice count, peak meter (color-coded green/yellow/red)
-- [x] **UDP bridge** — UdpOscBridge wired up at startup (binary UDP + OSC + status broadcast)
+### What They Do
+- All use `std::net::UdpSocket` — zero external dependencies
+- Communicate via text datagrams (`param <name> <value>`)
+- Instrument sends notes, mod sends parameters, analyzer receives status
+- No GUI inside Max — all parameters are mapped to M4L dials/sliders
 
-### Build
-```bash
-cargo run -p modurust_standalone
-```
+### What's Missing
+- Drum machine M4L device (`ModurustLite_Drum.amxd`) — 8-pad kit, sample assign, step grid
+- Visual status feedback (current sample, step position, pad mute/solo)
+- Note/pitch display in UI
 
-### Dependencies
-- `eframe` 0.26 (egui)
-- `cpal` 0.15 (audio)
-- `notify` (config watching, via core)
-- `crossbeam-channel` (via core)
-
-## Max for Live Bridges (`apps/m4l/*`)
-
-### Status: Working
-
-Three M4L devices provide Ableton Live integration:
-
-#### ModurustLite_Instrument.amxd
-- [x] Note on/off triggering
-- [x] Prime base control
-- [x] Prime phase control
-- [x] Waveform selection
-- [x] Filter cutoff/resonance
-- [x] Reverb/delay mix
-- [x] ADSR envelope
-- [x] Master gain
-
-#### ModurustLite_Analyzer.amxd
-- [x] NN sensitivity sweep
-- [x] Status packet parsing
-- [x] Mode display
-- [x] Peak meter
-- [x] Voice count
-
-#### ModurustLite_Modulator.amxd
-- [x] Prime base sweep
-- [x] Prime density control
-- [x] Instance spread control
-- [x] Status parsing
-
-### Communication
-- Send: UDP text commands to port 9000
-- Receive: Status on port 9002
-- Protocol: Text format (`param cutoff 0.5`, `note 60 100`)
-
-### Dependencies
-- None (uses `std::net::UdpSocket` only)
+---
 
 ## CLAP Plugin (`clap/`)
 
-### Status: Working
+**Version**: `clap-sys` 0.3 + `modurust-core` backend  
+**Build**: `cargo build -p modurust-clap --release`  
+**Status**: Available.
 
-- [x] CLAP instrument/audio-effect plugin
-- [x] 16 parameters exposed
-- [x] MIDI input (NoteOn/NoteOff)
-- [x] Audio output
-- [x] UDP control listener (port 9000)
-- [x] UDP status broadcaster (port 9002)
+### What It Does
+- Exposes modurust_core as a CLAP instrument
+- 16 parameters mapped to same physical values as VST2
+- MIDI input: NoteOn/NoteOff mapped to oscillator pitch
+- Mode selection: Synth / Drum / Sampler / FX (via parameter)
+- UDP listener on port 9000 for M4L commands
+- UDP status broadcaster on port 9002
+- Audio output via `CoreEngine::process_block`
 
-### Parameters (16)
+### GUI Status
+- **No built-in editor**. The plugin has no UI inside the DAW.
+- Users configure via the **standalone GUI** and save presets.
+- Parameter automation works without editor (CLAP spec).
+- A future M4L visualizer could present the graph UI.
 
-| Index | Parameter | Range |
-|-------|-----------|-------|
-| 0 | Filter Cutoff | 20-20000 Hz |
-| 1 | Filter Resonance | 0-1 |
-| 2 | Filter Mode | LP/HP/BP/Notch |
-| 3 | Reverb Mix | 0-1 |
-| 4 | Delay Time | 0-1 |
-| 5 | Delay Feedback | 0-1 |
-| 6 | Env Attack | 0-1 |
-| 7 | Env Release | 0-1 |
-| 8 | Waveform | Sine/Saw/Square/Tri |
-| 9 | Master Gain | 0-1 |
-| 10 | Prime Base | 1-100 |
-| 11 | Prime Phase | 0-1 |
-| 12 | NN Sensitivity | 0-1 |
-| 13 | Instance Density | 1-16 |
-| 14 | Instance Spread | 0-1 |
-| 15 | Engine Mode | Basic/Prime/NN/Hybrid |
+### Acceptance Criteria
+- Plugin loads in DAW 12+ without error
+- All 16 params appear as standard automatable knobs
+- MIDI Learn maps note input to oscillator freq
+- UDP listener receives text commands without panic
 
-### Build
-```bash
-cargo build -p modurust-clap --release
-```
-
-Output: `target/release/modurustclap.dll`
-
-### Dependencies
-- `clap-sys` 0.3 (CLAP API)
-- `crossbeam-channel`
-- `modurust_core`
+---
 
 ## VST2 Plugin (`vst/`)
 
-### Status: Working
+**Version**: `vst` 0.4 crate  
+**Build**: `cargo build -p modurust-vst --release`  
+**Status**: Available.
 
-- [x] VST2 instrument plugin
-- [x] 16 parameters exposed
-- [x] MIDI input (NoteOn/NoteOff)
-- [x] Audio output
-- [x] UDP control listener (port 9000)
-- [x] UDP status broadcaster (port 9002)
+### What It Does
+- Exposes modurust_core as a VST2 instrument
+- 16 parameters mapped to same physical values as CLAP
+- MIDI input: NoteOn/NoteOff mapped to oscillator pitch
+- Audio output via `CoreEngine::process_block`
+- UDP listener on port 9000, status on 9002
+- **No effects mode** — VST2 instruments cannot process post-feedback; use delay/reverb as insert effects
 
-### Parameters (16)
-| Index | Parameter | Range |
-|-------|-----------|-------|
-| 0 | Filter Cutoff | 20-20000 Hz |
-| 1 | Filter Resonance | 0-1 |
-| 2 | Filter Mode | LP/HP/BP/Notch |
-| 3 | Reverb Mix | 0-1 |
-| 4 | Delay Time | 0-1 |
-| 5 | Delay Feedback | 0-1 |
-| 6 | Env Attack | 0-1 |
-| 7 | Env Release | 0-1 |
-| 8 | Waveform | Sine/Saw/Square/Tri |
-| 9 | Master Gain | 0-1 |
-| 10 | Prime Base | 1-100 |
-| 11 | Prime Phase | 0-1 |
-| 12 | NN Sensitivity | 0-1 |
-| 13 | Instance Density | 1-16 |
-| 14 | Instance Spread | 0-1 |
-| 15 | Engine Mode | Basic/Prime/NN/Hybrid |
+### GUI Status
+- **No built-in editor**. Same as CLAP — configure via standalone GUI, save presets.
+- Parameter smoothing less critical than CLAP (no CIAP requirement), but basic smoothing added for automation lane continuity.
 
-### Build
-```bash
-cargo build -p modurust-vst --release
+---
+
+## Protocol Summary (UDP 9000–9005)
+
+| Port | Protocol | Direction | Description |
+|------|----------|-----------|-------------|
+| 9000 | Binary + text fallback | Send+Receive | NoteOn/NoteOff, SetParam, SetMode, Graph commands |
+| 9001 | OSC fallback (`/note_on`, etc.) | Receive | Max/MSP/Cycling '74 legacy |
+| 9002 | Text status feed | Receive | Labeled datagrams: mode, voices, peak meter |
+| 9003–9005 | Binary status packets | Receive | 31-byte packets: voice peak, env state, filter state, NN output |
+
+**Binary packet format** (31 bytes):
 ```
-
-Output: `target/release/modurustvst.dll`
-
-### Dependencies
-- `vst` 0.4 (VST2 API)
-- `crossbeam-channel`
-- `modurust_core`
-
-## Future Frontend Features to Implement
-
-### Not Yet Implemented (Planned):
-- [ ] VST3 support (modern DAW compatibility)
-- [ ] Plugin editor GUI (parameter editing interface)
-- [ ] Preset storage/recall (save/load plugin states)
-- [ ] MIDI Learn (map parameters to MIDI controllers)
-- [ ] OSC control (alternative to UDP binary protocol)
-
-### Architecture
-
+byte 0–3: voice_peak_f32 (amplitude)
+byte 4–7: env_stage_i32 (0=Idle, 1=Attack, 2=Decay, 3=Sustain, 4=Release)
+byte 8–11: filter_cutoff_i32 (Hz × 1000, i.e. 1200 → 0x04B0)
+byte 12–15: nn_output_f32 (norm. value -1..1)
+byte 16–19: nn_phase_f32 (0..1)
+byte 20–23: nn_sensitivity_f32 (0..1)
+byte 24–27: prime_phase_f32 (0..1)
+byte 28–30: reserved / unused (zero)
 ```
-                    ┌─────────────────┐
-                    │  Modurust Core  │
-                    │  (DSP Engine)   │
-                    └────────┬────────┘
-                             │
-        ┌────────────────────┼────────────────────┐
-        │                    │                    │
-   ┌────▼─────┐       ┌─────▼──────┐      ┌─────▼─────┐
-   │ Standalone│       │ M4L Bridges│      │ VST Plugin │
-   │   egui   │       │   UDP      │      │  UDP       │
-   │  GUI     │       │   Port 9000│      │  Port 9000 │
-   └──────────┘       └────────────┘      └────────────┘
-```
-
-All frontends communicate with the same core engine via:
-- EngineCommand messages
-- UDP text protocol (port 9000)
-- UDP status feed (port 9002)

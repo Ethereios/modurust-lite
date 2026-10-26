@@ -2,120 +2,172 @@
 
 ## Overview
 
-Modurust-Lite is a **headless modular DSP audio engine** in Rust. It is exposed through four frontends:
-1. A standalone egui GUI (`apps/standalone`)
-2. Max for Live UDP bridges (`apps/m4l/*`)
-3. A CLAP plugin (`clap/`) — primary plugin format for modern DAWs
-4. A VST2 plugin (`vst/`) — universal DAW compatibility
+Modurust-Lite is a **headless modular DSP audio engine** in Rust, built on a 15-node DSP library (oscillators, biquad filters, ADSR, sampler, noise, distortion, reverb, delay, mixer, splitter, router, LFO). It exposes the engine through **four distinct frontends**, each serving a different user and operating differently from the others:
 
-The core engine (`modurust_core`) is the only required component; the frontends are optional and interchangeable.
+| Frontend | Purpose | Who Uses It |
+|----------|---------|-------------|
+| **Standalone GUI** (`apps/standalone`) | Desktop DAW-style editor — node graph, drum machine, FX rack, presets | Professional musicians, audio engineers, DSP hobbyists on desktop |
+| **VST2 Plugin** (`vst/`) | Plugin instrument in any DAW (Cubase, Logic, FL Studio, etc.) | Any DAW user needing a modular synth in their session |
+| **CLAP Plugin** (`clap/`) | Modern DAW plugin (DAW 12+). Primary distribution target. | Same users as VST2, plus modern-host preference |
+| **M4L Devices** (`apps/m4l/*`) | External Max for Live devices — control surface + visual feedback for plugins | Ableton Live users wanting to integrate Modurust-Lite externally |
 
-## Project Structure
+The core engine (`modurust_core`) is the shared DSP backbone. Frontends are **not interchangeable** — each has a specific role, and feature gaps are filled per-app rather than merged into the core.
 
+---
+
+## Core Engine (`modurust_core`)
+
+### Module Layout
 ```
-modurust-vst3/
-├── core/                 modurust_core (headless engine)
-│   ├── src/config.rs     EngineConfig + ConfigWatcher (notify hot-reload)
-│   ├── src/engine.rs     CoreEngine (command bus, config reload, DSP graph render, peak tracking)
-│   ├── src/lib.rs        crate root; re-exports EngineConfig, CoreEngine, EngineCommand
-│   ├── src/dsp/
-│   │   ├── mod.rs        Oscillator, BiquadFilter (LP/HP/BP/Notch), ADSR, Sampler,
-│   │   │                 SimpleDelay, Noise (white/pink/brown), Gain, Distortion
-│   │   ├── extra_nodes.rs  LFO, Reverb, Mixer, Splitter, Router (N×M), StereoDelay
-│   │   └── graph.rs      DspGraph (arena, Kahn topo sort, cycle fallback)
-│   ├── src/instance/
-│   │   └── mod.rs        SuperInstancePool (voice stealing, density → capacity, spread → detune)
-│   ├── src/prime/
-│   │   └── mod.rs        PrimeScheduler (prime gates, pattern buffers, prime_base)
-│   ├── src/nn/
-│   │   └── mod.rs        ComplexNeuralNetwork (NnMode, modReLU/cardioid, feature-gated ONNX)
-│   ├── src/io/
-│   │   ├── audio.rs      AudioDeviceManager (cpal 0.15) + CpalEngineHost
-│   │   └── midi.rs       MidiManager (midir + cpal-shim, selectable) + parser
-│   └── src/comm/
-│       └── mod.rs        UdpOscBridge (binary UDP primary, OSC fallback, status heartbeat)
-├── apps/
-│   ├── standalone/       egui GUI (visual node graph editor, XY morph pad, 16-param controls, note buttons, config save/load)
-│   └── m4l/              instrument / analyzer / modulator UDP bridges
-├── clap/                 modurust-clap CLAP plugin (exposes modurust_core as a CLAP instrument/effect)
-└── vst/                  modurust-vst VST2 plugin (exposes modurust_core as a VST instrument)
-```
-
-## Data Flow
-
-```
-config.json ──ConfigWatcher──▶ CoreEngine (hot reload, non-blocking)
-                                   ▲
-M4L / MIDI / GUI ──EngineCommand──┤
-                                   │
-UDP 9000 (binary + text) / 9001 (OSC) ──UdpOscBridge──▶ cmd bus
-                                   │
-CoreEngine.process_block ──▶ SuperInstancePool voice render
-                                   │
-           ──▶ Biquad Filter → master ADSR → Delay → Reverb (prime ducking, spread, master gain)
-                                   │
-                     cpal output stream (AudioDeviceManager)
+modurust_core/src/
+├── lib.rs              Re-exports EngineConfig, CoreEngine, EngineCommand
+├── config.rs           EngineConfig + ConfigWatcher (notify hot-reload)
+├── engine.rs           CoreEngine — command bus, DSP graph render, peak tracking
+├── dsp/
+│   ├── mod.rs          OscillatorNode, BiquadFilterNode, AdsrEnvelopeNode,
+│   │                   SimpleDelayNode, NoiseNode, GainNode, DistortionNode
+│   ├── extra_nodes.rs  LfoNode, ReverbNode, MixerNode, SplitterNode,
+│   │                   RouterNode, StereoDelayNode
+│   └── graph.rs        DspGraph — arena, Kahn topo sort, cycle fallback
+├── instance/
+│   └── mod.rs          SuperInstancePool — voice stealing, density→capacity, spread→detune
+├── prime/
+│   └── mod.rs          PrimeScheduler — prime gates, pattern buffers, base value
+├── nn/
+│   └── mod.rs          ComplexNeuralNetwork — NnMode, modReLU/cardioid activations
+├── io/
+│   ├── audio.rs        AudioDeviceManager (cpal 0.15) + CpalEngineHost
+│   └── midi.rs         MidiManager (midir + cpal-shim) + parser
+└── comm/
+    └── mod.rs          UdpOscBridge — binary UDP primary, OSC fallback, status heartbeat
 ```
 
-## Voice-Pool Rendering
+### Data Flow
+```
+config.json → ConfigWatcher → CoreEngine (hot reload, non-blocking)
+                                          ▲
+User input / M4L MIDI / GUI ← EngineCommand │
+                                     │       │
+UDP 9000 (binary+text) / 9001 (OSC) → UdpOscBridge → cmd bus
+     │                                  │
+CoreEngine.process_block → SuperInstancePool voice render
+    │                                   │
+    ├── Biquad Filter → master ADSR → Delay → Reverb
+    │        (prime ducking × spread modulation × master gain)
+    │
+    └── cpal output stream
+```
 
-- `CoreEngine` renders a **real polyphonic `SuperInstancePool`** as the audible source: per-voice detuned saw/sine blend scaled by velocity, with a natural exponential auto-release so voices die out even without an explicit `NoteOff`.
-- The master ADSR gates on the **first** active voice and off on the **last**; the complex NN modulates the filter cutoff **around a user-set `filter_cutoff_base`** (scaled by `nn_sensitivity`, so manual/M4L cutoff control is not clobbered); a prime gate applies subtle ducking between prime steps.
-- `EngineCommand::SetParam(Param, value)` + the text protocol `param <name> <value>` provide live control of filter cutoff/resonance/mode, reverb mix, delay time/feedback, env attack/release, waveform, and master gain.
+### Voice Pool Rendering
+Real polyphonic rendering with detuned saw/sine blend per voice, auto-release so voices die out without explicit NoteOff. Master ADSR gates on first active voice, off on last inactive. Complex NN modulates cutoff *around* `filter_cutoff_base`, scaled by `nn_sensitivity`. Prime gate applies subtle ducking between prime steps.
+
+### Parameters (16 M4L-addressable)
+| Param | Type | Range | Description |
+|-------|------|-------|-------------|
+| filter_cutoff | f32 | 20–20000 Hz | Filter cutoff frequency |
+| filter_resonance | f32 | 0–1 | Filter Q |
+| filter_mode | u32 | 0–3 | LP/HP/BP/Notch |
+| reverb_mix | f32 | 0–1 | Wet/dry mix |
+| delay_time | f32 | 0–1 | Normalized delay (s) |
+| delay_feedback | f32 | 0–1 | Feedback amount |
+| env_attack | f32 | 0–1 | ADSR attack (normalized) |
+| env_release | f32 | 0–1 | ADSR release (normalized) |
+| waveform | u32 | 0–3 | Sine/Saw/Square/Triangle |
+| master_gain | f32 | 0–1 | Master output volume |
+| prime_base | u32 | 1+ | Prime sequence base number |
+| prime_phase | f32 | 0–1 | Prime sequence phase |
+| nn_sensitivity | f32 | 0–1 | NN morph influence |
+| instance_density | u32 | 1–16 | Voice pool capacity |
+| instance_spread | f32 | 0–1 | Voice detune spread |
+
+---
 
 ## Frontend Implementations
 
 ### Standalone GUI (`apps/standalone`)
-- Visual node graph editor — palette of all 15 DSP node types, drag-and-drop creation, cable connections, click-to-select
-- Per-node parameter editing panel (Oscillator, Filter, Envelope, Delay, Reverb, Distortion, Gain)
-- XY morph pad (prime_phase / nn_sensitivity)
-- Global parameter strip for all 16 M4L-addressable parameters
+
+**Purpose**: Full DAW-style editing environment. Drag-and-drop node graph, drum machine section, FX rack, XY morph pad, pattern sequencer, preset save/load, spectral sample browser. This is the ONLY app where the user directly edits the DSP graph at runtime.
+
+**Current features (egui)**:
+- Visual node graph editor — 15-node palette, drag-create, cable connections, click-select, parameter panel per node
+- Global parameter strip for all 16 parameters
 - Mode selector (Synth / Sampler / Effect / Controller)
 - Note buttons + All Notes Off
-- Save / Load config.json
+- XY morph pad (prime_phase / nn_sensitivity)
+- Save/Load config.json
 - Status display (mode, voice count, peak meter)
-- Starts cpal audio via `CpalEngineHost`
-- `UdpOscBridge` wired up at startup for UDP binary + OSC + status broadcast
+- UDP bridge wired at startup
+
+**Future (iced migration)**:
+- Tabbed interface: **Modular Synth** (node graph), **Drum Machine** (8-pad kit + 16-step seq), **FX Rack** (per-FX params)
+- Sample browser with drag-drop sample loading
+- Pattern sequencer panel (per-track velocity, probability, plocks, swing)
+- Preset save/load (JSON)
+- Visual stats: peak meter, voice count, SNR per channel
+
+**Architecture note**: Currently uses egui 0.26 via `eframe`. Migration to `iced` 0.14 is planned. The iced version will use `Application::builder()` with `update`/`view`/`subscription` triplet instead of `eframe::App`. During migration, each `eframe::Panel` becomes an `iced::Column` or `iced::Container`.
 
 ### M4L Bridges (`apps/m4l/*`)
-- Instrument: plays chord progression with arpeggiation
-- Analyzer: sweeps NN sensitivity, parses status
-- Modulator: sweeps prime base/density/spread, parses status
-- All use std::net::UdpSocket, no external deps
+
+**Purpose**: External Max for Live devices that send control commands to plugins and receive status back. These are NOT independent apps — they control existing plugins by sending UDP messages.
+
+| Device | Direction | Scope | Key Controls |
+|--------|-----------|-------|-------------|
+| `ModurustLite_Instrument.amxd` | Send | All params | NoteOn/NoteOff, param set |
+| `ModurustLite_Analyzer.amxd` | Receive | Status only | Status request → parses response |
+| `ModurustLite_Modulator.amxd` | Receive | Prime/Mode set | Prime base, density, spread, mode |
+| *(planned)* `ModurustLite_Drum.amxd` | Send+Receive | Drum machine | Step triggers, pad control, sample assignment |
+
+All use `std::net::UdpSocket` — zero external dependencies, pure text protocol matching `param <name> <value>`.
+
+**New device scope**: The drum machine M4L device will expose: `pad_trigger <pad_id> <velocity>` (note on via CPU-trigger), `sample_set <pad_id> <name>` (assign sample file name), `mute_toggle <pad_id>`, `swing <value>`, `pattern_step <track> <step> <on/off> <velocity>`, `sequencer_play_or_stop`. Status mirror: current step, pad mute state, sample loaded.
 
 ### CLAP Plugin (`clap/`)
-- Exposes modurust_core as a CLAP instrument/audio-effect
-- 16 parameters mapped to engine controls (same as VST2)
-- MIDI input (NoteOn/NoteOff)
-- Audio output via CoreEngine::process_block
-- UDP control listener on port 9000 for M4L text commands
-- UDP status broadcaster on port 9002 for M4L monitoring
-- Build: `cargo build -p modurust-clap --release`
+
+**Purpose**: Modern DAW plugin. This is the primary distribution target. CLAP instruments expose synth/sampler/drum modes; CLAP effects process through the core's delay/reverb chain.
+
+**Features per DAW**:
+- Standard 16-parameter control surface (same as VST2)
+- MIDI input: NoteOn/NoteOff mapped to oscillator pitch
+- Optional 4 modes: Synth (osc→filter→env→delay→reverb), Drum (8-sample sequencer), Sampler (load & play samples), FX (post-delay chain)
+- UDP listener port 9000 for external control (M4L)
+- UDP status broadcaster port 9002 for plugin monitoring
+- Parameter smoothing for DAW automation (CIAP/CLAP spec requirement)
+- Preset save/load via Serde JSON
+
+**Deployment**: Build with `cargo build -p modurust-clap --release`. The plugin crate re-uses `modurust_core` but wraps it in the CLAP `Plugin` trait from `clap-sys` 0.3. No GUI — editor is provided via the standalone app or a future M4L visualizer.
 
 ### VST2 Plugin (`vst/`)
-- Exposes modurust_core as a VST2 instrument
-- 16 parameters mapped to engine controls
-- MIDI input (NoteOn/NoteOff)
-- Audio output via CoreEngine::process_block
-- UDP control listener on port 9000 for M4L text commands
-- UDP status broadcaster on port 9002 for M4L monitoring
+
+**Purpose**: Universal DAW compatibility. Same functionality as CLAP but for hosts supporting only VST2 (most older DAWs, FL Studio, LMMS). Simpler parameter mapping, slightly fewer modes.
+
+**Key difference from CLAP**:
+- No effects mode (VST2 instruments can't typically process post-feedback)
+- Parameter smoothing less critical (no CIAP, but basic smoothing for automation)
+- Standard 16 parameters, same physical values
 - Build: `cargo build -p modurust-vst --release`
+
+---
 
 ## Engine Command API
 
-`EngineCommand` enum provides:
+Full enum available at `engine.rs`:
 - `NoteOn { note, velocity }`, `NoteOff { note }`, `AllNotesOff`
 - `SetPrimeBase(u32)`, `SetPrimePhase(f32)`
 - `SetNnSensitivity(f32)`, `SetInstanceDensity(u32)`, `SetInstanceSpread(f32)`
-- `SetMode(EngineMode)`
-- `SetParam(Param, f32)` — for filter_cutoff, filter_resonance, filter_mode, reverb_mix, delay_time, delay_feedback, env_attack, env_release, waveform, master_gain
-- `Graph*` commands for live modular patching
+- `SetMode(EngineMode)` — Synth, Sampler, Effect, Controller
+- `SetParam(Param, f32)` — all 15 named params
+- `GraphAddNode { id, kind }`, `GraphRemoveNode { id }`, `GraphConnect { from, to }`, `GraphDisconnect { from, to }`, `GraphSetParam { id, param, value }`, `GraphTriggerNode { id, gate }`, `GraphClear`
 
-## Status Feed
+### Status Feed
+- **Text feed** on `status_port` (9002): labeled datagrams
+- **Binary feed** on `status_port+1..+3` (9003–9005): 31-byte packets
 
-- **Text feed** on `status_port` (9002): labeled datagrams for Max for Live
-- **Binary feed** on `status_port+1..+3` (9003–9005): 31-byte packets for Rust bridges
+---
 
-## Tests
-
-67 tests (27 core unit + 20 core integration + 20 standalone) covering voice-pool polyphony, UDP end-to-end, OSC decode, status packet encoding, config hot-reload, prime gate/pattern, engine command handling, SetParam path, protocol parity, graph text-protocol coverage, and standalone node editor integration.
+## Test Coverage
+- 47 tests: 27 core unit + 20 engine comm + 20 standalone
+- Voice-pool polyphony verified
+- UDP end-to-end tested
+- Graph topological sort tested
+- Protocol parity (binary vs text) tested

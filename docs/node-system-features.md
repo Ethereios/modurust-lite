@@ -2,127 +2,86 @@
 
 ## Overview
 
-Modurust-Lite is a **modular DSP audio engine**. Nodes are connected in a graph that processes audio from input to output.
+Modurust-Lite's DSP core is a library of **15 real-time nodes** processed through a **live-patchable `DspGraph`**. Each node implements the `DspNode` trait (`process(inputs: &[f32], outputs: &mut [f32])`). The graph runs inside `CoreEngine::process_block` after the voice pool renders.
 
-## Implemented Node Types
+---
 
-### Oscillators
-- [x] **Oscillator** - Sine, saw, square, triangle waveforms
-- [ ] Wavetable oscillator (planned)
-- [ ] FM synthesis (planned)
-- [ ] Physical modeling / Karplus-Strong (planned)
+## Node Catalogue (implemented)
 
-### Filters
-- [x] **BiquadFilter** - Low-pass, High-pass, Band-pass, Notch modes
-- [ ] State-variable filter (planned - 4-mode simultaneous output)
-- [ ] Ladder filter (planned - Moog-style resonance)
-- [ ] Formant filter (planned - vocal synthesis)
-- [ ] FFT-based spectral filter (planned)
+| Category | Node | Inputs | Outputs | Key Params | Modes |
+|----------|------|--------|---------|------------|-------|
+| Oscillator | OscillatorNode | — | 1 | waveform, freq | sine/saw/square/triangle |
+| Filter | BiquadFilterNode | 1 | 1 | cutoff, resonance, mode | LP/HP/BP/Notch |
+| Envelope | AdsrEnvelopeNode | 1 | 1 | attack, decay, sustain, release | idle/attack/decay/sustain/release |
+| Noise | NoiseNode | — | 1 | color | white/pink/brown |
+| Gain | GainNode | 1 | 1 | gain | — |
+| Distortion | DistortionNode | 1 | 1 | drive, tone | tanh + one-pole tone |
+| Delay | SimpleDelayNode | 1 | 1 | delay_samples, feedback | fixed-length ring buffer |
+| Delay | StereoDelayNode | 1 | 1 | delay_left, delay_right, feedback, cross_feedback | L/R mono-summed |
+| Reverb | ReverbNode | 1 | 1 | room_size, damping | Schroeder-style ring delay |
+| LFO | LfoNode | — | 1 | freq | sine |
+| Mixer | MixerNode | 1 | 1 | gain1, gain2 | mono self-modulation |
+| Splitter | SplitterNode | 1 | 1 | — | passthrough |
+| Router | RouterNode | N×M | N×M | route gain matrix | N×M routing matrix |
+| Sampler | SamplerNode | — | 1 | buffer, playback_rate, trigger | one-shot sample |
 
-### Envelopes & Dynamics
-- [x] **ADSR** - Attack, Decay, Sustain, Release with per-voice auto-release
-- [ ] Compressor (planned)
-- [ ] Gate (planned)
-- [ ] Limiter (planned)
+### Already Present in `engine.rs`
+The following nodes are instantiated directly inside `CoreEngine` and process the voice-pool block: `osc`, `filter`, `env`, `delay`, `reverb`, `master_gain`. The `graph` (if live) routes voice output through user nodes instead.
 
-### Effects
-- [x] **SimpleDelay** - Basic delay effect
-- [x] **Reverb** - Simple reverb effect
-- [x] **StereoDelay** - Stereo delay with L/R channels
-- [x] **Distortion** - Waveshaping distortion
-- [ ] Convolution reverb (planned)
-- [ ] Chorus / Phaser / Flanger (planned)
-- [ ] Granular synthesis (planned)
+---
 
-### Sources
-- [x] **Noise** - White, pink, brown noise generators
-- [x] **Sampler** - Sample playback node
+## Planned DSP Expansion
 
-### Utility
-- [x] **Gain** - Volume control
-- [x] **LFO** - Low-frequency oscillator for modulation
-- [x] **Mixer** - Multi-input mixing
-- [x] **Splitter** - Single input to multiple outputs
-- [x] **Router** - N×M routing matrix
+| Node | Description | Priority | Source Pattern |
+|------|-------------|----------|----------------|
+| StateVariableFilter | 4-mode simultaneous LP/HP/BP/Notch output | Medium | autokit `SvfChannel` bipolar DJ filter (−1 LP kill, +1 HP kill, 0 bypass) |
+| LadderFilter | Moog-style 24 dB/octave resonance | High | rust-synth ladder filter research |
+| WavetableOscillator | Wave morphing between stored waveforms | Medium | — |
+| FMOperator | Modular FM synthesis operator | Low | — |
+| ConvolutionReverb | IR-based reverb | Low | — |
+| GranularProcessor | Grain cloud | Low | — |
+| Compressor | Sidechain + dynamics | Medium | autokit step_smoother dynamics research |
+| Gate | Threshold-based mute | Low | — |
+| Limiter | Ceiling limiting | Medium | — |
+| DrumMachine | Sample playback + 16-step trigger | High | autokit `sampler.rs` (32 voices, MAX_VOICES=32) |
 
-### Neural Network
-- [x] **ComplexNeuralNetwork** - Complex-valued NN with modReLU/cardioid activations
-- [ ] ONNX model loading (planned)
+### State-Variable Filter (SVF) — from autokit
+Bipolar single-pole SVF per channel. Knob −1 = lowpass kill, 0 = bypass, +1 = highpass kill. Cutoff sweeps 40 Hz–18 kHz. Coefficients computed per-sample so knob sweeps freely without zipper noise. Lives inside `FxBus`, not on the voice path — used as master insert with dry_bypass.
+
+---
 
 ## Graph System
 
-- [x] Arena allocator for node storage
-- [x] Kahn topological sort for processing order
-- [x] Cycle detection with fallback (for feedback)
-- [x] Live graph patching commands (text protocol)
+### `DspGraph` (`graph.rs`)
+- **Arena allocator** — nodes stored in `Vec<Option<Node>>`, holes reused
+- **Kahn topological sort** — determines processing order on topology change
+- **Cycle detection** — fallback: strongest edge broken to prevent infinite loop
+- **Live patching commands** — `GraphAddNode`, `GraphRemoveNode`, `GraphConnect`, `GraphDisconnect`, `GraphSetParam`, `GraphTriggerNode`, `GraphClear`
+- **Realtime safe** — topology changes happen on command bus, processed once per block before render
 
-## Node Control
+### Engine Modes
+| Mode | Behavior |
+|------|----------|
+| **Synth** | Oscillator → Filter → ADSR → Delay → Reverb (default fixed chain) |
+| **Sampler** | Voice pool plays SamplerNode buffers via MIDI notes |
+| **Effect** | Bypasses voice pool; audio passes through delay/reverb chain |
+| **Controller** | Lightweight: sends commands, no DSP (for M4L mapping) |
 
-### Parameters
-| Parameter | Type | Range | Description |
-|-----------|------|-------|-------------|
-| filter_cutoff | f32 | 20-20000 Hz | Filter cutoff frequency |
-| filter_resonance | f32 | 0-1 | Filter resonance/Q |
-| filter_mode | u32 | 0-3 | LP/HP/BP/Notch |
-| reverb_mix | f32 | 0-1 | Reverb wet/dry mix |
-| delay_time | f32 | 0-1 | Delay time (normalized) |
-| delay_feedback | f32 | 0-1 | Delay feedback amount |
-| env_attack | f32 | 0-1 | ADSR attack time |
-| env_release | f32 | 0-1 | ADSR release time |
-| waveform | u32 | 0-3 | Sine/Saw/Square/Triangle |
-| master_gain | f32 | 0-1 | Master output volume |
-
-### Prime/Neural Control
-| Parameter | Type | Range | Description |
-|-----------|------|-------|-------------|
-| prime_base | u32 | 1+ | Prime sequence base number |
-| prime_phase | f32 | 0-1 | Prime sequence phase |
-| nn_sensitivity | f32 | 0-1 | Neural network influence |
-| instance_density | u32 | 1-16 | Voice pool capacity |
-| instance_spread | f32 | 0-1 | Voice detune spread |
-
-## Engine Modes
-
-- [x] **Basic** - Simple oscillator through filter
-- [x] **Prime** - Prime-sequenced gate patterns
-- [x] **NN** - Neural network modulation
-- [x] **Hybrid** - Combined prime + NN control
-
-## Future Node Features to Implement
-
-### Audio I/O Nodes (engine currently uses cpal directly):
-- Audio input recording (input node)
-- Audio file import (sampler with file support)
-- Audio export (output node)
-
-### MIDI Piano Roll / Sequencing:
-- MIDI note recording (MIDI piano roll)
-- Step sequencer (per-note timing grid)
-- Arpeggiator (internally instead of M4L-only)
-
-### Visual Editor Enhancements:
-- [x] Node graph UI for standalone (complete visual node editor)
-- [x] Cable patching visualization (rendered connections between nodes)
-- [x] Node palette with all 15 DSP node types organized by category
-- [x] Quick templates (Synth Chain, Delay Effect)
-- [x] Per-node parameter editing via side panel
-- [x] Drag-and-drop node positioning on canvas
-
-### Additional Filter/Effect Types:
-- State-variable filter (4-mode simultaneous output)
-- Ladder filter (Moog-style resonance)
-- Formant filter (vocal synthesis)
-- FFT-based spectral filter
-- Convolution reverb
-- Chorus / Phaser / Flanger
-- Granular synthesis node
-- Compressor, Gate, Limiter nodes
+---
 
 ## Test Coverage
 
-All node types have unit tests and integration tests:
-- 67 tests passing (27 core + 20 engine comm + 20 standalone)
-- Voice pool polyphony tested
-- Graph topological sort tested
-- Parameter routing tested
-- DSP processing chain tested
+| Area | Status |
+|------|--------|
+| Oscillator waveform generation | Unit-tested |
+| BiquadFilter all modes | Unit-tested |
+| ADSR stages | Unit-tested |
+| Reverb buffer ring | Unit-tested |
+| StereoDelay dry-first | Unit-tested |
+| Router routing matrix | Unit-tested |
+| Graph topological sort | Integration-tested |
+| Voice pool polyphony | Integration-tested |
+| Graph text protocol coverage | Integration-tested |
+| SetParam path | Integration-tested |
+
+**Total**: 47 tests (27 unit + 20 engine comm). `cargo test --workspace` passes.
